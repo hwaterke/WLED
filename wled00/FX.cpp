@@ -314,6 +314,53 @@ uint16_t color_wipe(bool rev, bool useRandomColors) {
   return FRAMETIME;
 }
 
+/*
+ * Similar to color_wipe but stays static after the wipe.
+ */
+uint16_t mode_color_wipe_once(void) {
+  if (SEGLEN <= 1) return mode_static();
+
+  // The time it takes to complete the wipe is determined by the speed setting.
+  uint32_t cycleTime = 750 + (255 - SEGMENT.speed)*150;
+
+  if (strip.now > cycleTime) {
+    return mode_static();
+  }
+
+  // The percentage of the cycle time that has passed is calculated.
+  uint32_t perc = strip.now % cycleTime;
+
+  // The progress is calculated as a value between 0 and 65535.
+  unsigned prog = (perc * 65535) / cycleTime;
+
+  // The index of the LED that should be lit is calculated.
+  unsigned ledIndex = (prog * SEGLEN) >> 15;
+
+  // The intensity of the LED that should be lit is calculated.
+  uint16_t rem = (prog * SEGLEN) * 2; //mod 0xFFFF by truncating
+  rem /= (SEGMENT.intensity +1);
+  if (rem > 255) rem = 255; //clamp the intensity to 255
+
+  // The color of the LED that should be lit is calculated.
+  uint32_t col1 =  SEGCOLOR(1);
+
+  for (unsigned i = 0; i < SEGLEN; i++)
+  {
+    unsigned index = i;
+    uint32_t col0 = SEGMENT.color_from_palette(index, true, PALETTE_SOLID_WRAP, 0);
+
+    if (i < ledIndex)
+    {
+      SEGMENT.setPixelColor(index, col0);
+    } else
+    {
+      SEGMENT.setPixelColor(index, col1);
+      if (i == ledIndex) SEGMENT.setPixelColor(index, color_blend(col1, col0, uint8_t(rem)));
+    }
+  }
+  return FRAMETIME;
+}
+static const char _data_FX_MODE_COLOR_WIPE_ONCE[] PROGMEM = "Wipe Once@!,!;!,!;!";
 
 /*
  * Lights all LEDs one after another.
@@ -11219,6 +11266,7 @@ void WS2812FX::setupEffectData() {
   addEffect(FX_MODE_PARTICLEGHOSTRIDER, &mode_particleghostrider, _data_FX_MODE_PARTICLEGHOSTRIDER);
   addEffect(FX_MODE_PARTICLEBLOBS, &mode_particleblobs, _data_FX_MODE_PARTICLEBLOBS);
   addEffect(FX_MODE_PARTICLEGALAXY, &mode_particlegalaxy, _data_FX_MODE_PARTICLEGALAXY);
+  addEffect(FX_MODE_COLOR_WIPE_ONCE, &mode_color_wipe_once, _data_FX_MODE_COLOR_WIPE_ONCE);
 #endif // WLED_DISABLE_PARTICLESYSTEM2D
 #endif // WLED_DISABLE_2D
 
